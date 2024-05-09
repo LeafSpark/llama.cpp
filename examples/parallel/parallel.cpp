@@ -262,9 +262,9 @@ int main(int argc, char ** argv) {
                         llama_batch_add(batch, tokens_prompt[i], i + n_tokens_system, { client.id + 1 }, false);
                     }
 
-                    // extract the logits only for the last token
+                    // extract the output only for the last token
                     if (batch.n_tokens > 0) {
-                        batch.logits[batch.n_tokens - 1] = true;
+                        batch.output[batch.n_tokens - 1] = true;
                     }
 
                     client.n_prompt  = tokens_prompt.size();
@@ -307,7 +307,7 @@ int main(int argc, char ** argv) {
                 batch.pos      + i,
                 batch.n_seq_id + i,
                 batch.seq_id   + i,
-                batch.logits   + i,
+                batch.output + i,
                 0, 0, 0, // unused
             };
 

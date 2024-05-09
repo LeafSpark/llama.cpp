@@ -74,6 +74,7 @@ extern "C" {
         LLAMA_VOCAB_PRE_TYPE_DEFAULT        = 0,
         LLAMA_VOCAB_PRE_TYPE_LLAMA3         = 1,
         LLAMA_VOCAB_PRE_TYPE_DEEPSEEK_LLM   = 2,
+        LLAMA_VOCAB_PRE_TYPE_DEEPSEEK2_LLM   = 3,
         LLAMA_VOCAB_PRE_TYPE_DEEPSEEK_CODER = 3,
         LLAMA_VOCAB_PRE_TYPE_FALCON         = 4,
         LLAMA_VOCAB_PRE_TYPE_MPT            = 5,
@@ -187,7 +188,7 @@ extern "C" {
     // - embd   : token embeddings (i.e. float vector of size n_embd) (used when token is NULL)
     // - pos    : the positions of the respective token in the sequence
     // - seq_id : the sequence to which the respective token belongs
-    // - logits : if zero, the logits (and/or the embeddings) for the respective token will not be output
+    // - output : if zero, the output (and/or the embeddings) for the respective token will not be output
     //
     typedef struct llama_batch {
         int32_t n_tokens;
@@ -197,7 +198,7 @@ extern "C" {
         llama_pos    *  pos;
         int32_t      *  n_seq_id;
         llama_seq_id ** seq_id;
-        int8_t       *  logits; // TODO: rename this to "output"
+        int8_t       *  output;
 
         // NOTE: helpers for smooth API transition - can be deprecated in the future
         //       for future-proof code, use the above fields instead and ignore everything below
@@ -290,8 +291,8 @@ extern "C" {
         enum ggml_type type_v; // data type for V cache
 
         // Keep the booleans together to avoid misalignment during copy-by-value.
-        bool logits_all;  // the llama_decode() call computes all logits, not just the last one (DEPRECATED - set llama_batch.logits instead)
-        bool embeddings;  // if true, extract embeddings (together with logits)
+        bool logits_all;  // the llama_decode() call computes all output, not just the last one (DEPRECATED - set llama_batch.output instead)
+        bool embeddings;  // if true, extract embeddings (together with output)
         bool offload_kqv; // whether to offload the KQV ops (including the KV cache) to GPU
         bool flash_attn;  // whether to use flash attention
 
@@ -624,7 +625,7 @@ extern "C" {
     // State / sessions
     //
 
-    // Returns the maximum size in bytes of the state (rng, logits, embedding
+    // Returns the maximum size in bytes of the state (rng, output, embedding
     // and kv_cache) - will often be smaller after compacting tokens
     LLAMA_API size_t llama_state_get_size(const struct llama_context * ctx);
     LLAMA_API DEPRECATED(size_t llama_get_state_size(const struct llama_context * ctx),
@@ -767,22 +768,22 @@ extern "C" {
     // and is not necessary to call it explicitly in most cases
     LLAMA_API void llama_synchronize(struct llama_context * ctx);
 
-    // Token logits obtained from the last call to llama_decode()
-    // The logits for which llama_batch.logits[i] != 0 are stored contiguously
+    // Token output obtained from the last call to llama_decode()
+    // The output for which llama_batch.output[i] != 0 are stored contiguously
     // in the order they have appeared in the batch.
-    // Rows: number of tokens for which llama_batch.logits[i] != 0
+    // Rows: number of tokens for which llama_batch.output[i] != 0
     // Cols: n_vocab
     LLAMA_API float * llama_get_logits(struct llama_context * ctx);
 
     // Logits for the ith token. For positive indices, Equivalent to:
     // llama_get_logits(ctx) + ctx->output_ids[i]*n_vocab
-    // Negative indicies can be used to access logits in reverse order, -1 is the last logit.
+    // Negative indicies can be used to access output in reverse order, -1 is the last logit.
     // returns NULL for invalid ids.
     LLAMA_API float * llama_get_logits_ith(struct llama_context * ctx, int32_t i);
 
     // Get all output token embeddings.
     // when pooling_type == LLAMA_POOLING_TYPE_NONE or when using a generative model,
-    // the embeddings for which llama_batch.logits[i] != 0 are stored contiguously
+    // the embeddings for which llama_batch.output[i] != 0 are stored contiguously
     // in the order they have appeared in the batch.
     // shape: [n_outputs*n_embd]
     // Otherwise, returns NULL.
@@ -913,7 +914,7 @@ extern "C" {
                            float   penalty_freq,
                            float   penalty_present);
 
-    /// @details Apply classifier-free guidance to the logits as described in academic paper "Stay on topic with Classifier-Free Guidance" https://arxiv.org/abs/2306.17806
+    /// @details Apply classifier-free guidance to the output as described in academic paper "Stay on topic with Classifier-Free Guidance" https://arxiv.org/abs/2306.17806
     /// @param logits Logits extracted from the original generation context.
     /// @param logits_guidance Logits extracted from a separate context from the same model. Other than a negative prompt at the beginning, it should have all generated and user input tokens copied from the main context.
     /// @param scale Guidance strength. 1.0f means no guidance. Higher values mean stronger guidance.
@@ -923,7 +924,7 @@ extern "C" {
                              float * logits_guidance,
                              float   scale);
 
-    /// @details Sorts candidate tokens by their logits in descending order and calculate probabilities based on logits.
+    /// @details Sorts candidate tokens by their output in descending order and calculate probabilities based on output.
     LLAMA_API void llama_sample_softmax(
             struct llama_context * ctx,
           llama_token_data_array * candidates);

@@ -9,14 +9,14 @@ func llama_batch_clear(_ batch: inout llama_batch) {
     batch.n_tokens = 0
 }
 
-func llama_batch_add(_ batch: inout llama_batch, _ id: llama_token, _ pos: llama_pos, _ seq_ids: [llama_seq_id], _ logits: Bool) {
+func llama_batch_add(_ batch: inout llama_batch, _ id: llama_token, _ pos: llama_pos, _ seq_ids: [llama_seq_id], _ output: Bool) {
     batch.token   [Int(batch.n_tokens)] = id
     batch.pos     [Int(batch.n_tokens)] = pos
     batch.n_seq_id[Int(batch.n_tokens)] = Int32(seq_ids.count)
     for i in 0..<seq_ids.count {
         batch.seq_id[Int(batch.n_tokens)]![Int(i)] = seq_ids[i]
     }
-    batch.logits  [Int(batch.n_tokens)] = logits ? 1 : 0
+    batch.output  [Int(batch.n_tokens)] = output ? 1 : 0
 
     batch.n_tokens += 1
 }
@@ -131,7 +131,7 @@ actor LlamaContext {
             let i = Int(i1)
             llama_batch_add(&batch, tokens_list[i], Int32(i), [0], false)
         }
-        batch.logits[Int(batch.n_tokens) - 1] = 1 // true
+        batch.output[Int(batch.n_tokens) - 1] = 1 // true
 
         if llama_decode(context, batch) != 0 {
             print("llama_decode() failed")
@@ -144,13 +144,13 @@ actor LlamaContext {
         var new_token_id: llama_token = 0
 
         let n_vocab = llama_n_vocab(model)
-        let logits = llama_get_logits_ith(context, batch.n_tokens - 1)
+        let output = llama_get_logits_ith(context, batch.n_tokens - 1)
 
         var candidates = Array<llama_token_data>()
         candidates.reserveCapacity(Int(n_vocab))
 
         for token_id in 0..<n_vocab {
-            candidates.append(llama_token_data(id: token_id, logit: logits![Int(token_id)], p: 0.0))
+            candidates.append(llama_token_data(id: token_id, logit: output![Int(token_id)], p: 0.0))
         }
         candidates.withUnsafeMutableBufferPointer() { buffer in
             var candidates_p = llama_token_data_array(data: buffer.baseAddress, size: buffer.count, sorted: false)
@@ -212,7 +212,7 @@ actor LlamaContext {
             for i in 0..<n_tokens {
                 llama_batch_add(&batch, 0, Int32(i), [0], false)
             }
-            batch.logits[Int(batch.n_tokens) - 1] = 1 // true
+            batch.output[Int(batch.n_tokens) - 1] = 1 // true
 
             llama_kv_cache_clear(context)
 

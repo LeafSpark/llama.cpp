@@ -435,7 +435,7 @@ int main(int argc, char ** argv) {
             // infinite text generation via context swapping
             // if we run out of context:
             // - take the n_keep first tokens from the original prompt (via n_past)
-            // - take half of the last (n_ctx - n_keep) tokens and recompute the logits in batches
+            // - take half of the last (n_ctx - n_keep) tokens and recompute the output in batches
             if (n_past + (int) embd.size() + std::max<int>(0, guidance_offset) > n_ctx) {
                 if (params.n_predict == -2) {
                     LOG_TEE("\n\n%s: context full and n_predict == -%d => stopping\n", __func__, params.n_predict);

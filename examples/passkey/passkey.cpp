@@ -160,7 +160,7 @@ int main(int argc, char ** argv) {
         }
 
         if (i + n_batch >= n_tokens_all) {
-            batch.logits[batch.n_tokens - 1] = true;
+            batch.output[batch.n_tokens - 1] = true;
         }
 
         if (llama_decode(ctx, batch) != 0) {
@@ -194,7 +194,7 @@ int main(int argc, char ** argv) {
         }
 
         if (i + n_batch >= n_tokens_all) {
-            batch.logits[batch.n_tokens - 1] = true;
+            batch.output[batch.n_tokens - 1] = true;
         }
 
         if (llama_decode(ctx, batch) != 0) {

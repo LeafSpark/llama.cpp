@@ -1079,7 +1079,7 @@ struct server_context {
                     batch.pos      + i,
                     batch.n_seq_id + i,
                     batch.seq_id   + i,
-                    batch.logits   + i,
+                    batch.output + i,
                     0, 0, 0, // unused
                 };
 
@@ -1418,7 +1418,7 @@ struct server_context {
         std::vector<float> embd_res(n_embd, 0.0f);
 
         for (int i = 0; i < batch.n_tokens; ++i) {
-            if (!batch.logits[i] || batch.seq_id[i][0] != slot.id + 1) {
+            if (!batch.output[i] || batch.seq_id[i][0] != slot.id + 1) {
                 continue;
             }
 
@@ -2041,8 +2041,8 @@ struct server_context {
                         }
 
                         if (slot.n_past == slot.n_prompt_tokens && slot.n_past > 0) {
-                            // we have to evaluate at least 1 token to generate logits.
-                            LOG_INFO("we have to evaluate at least 1 token to generate logits", {
+                            // we have to evaluate at least 1 token to generate output.
+                            LOG_INFO("we have to evaluate at least 1 token to generate output", {
                                 { "id_slot", slot.id },
                                 { "id_task", slot.id_task }
                             });
@@ -2134,8 +2134,8 @@ struct server_context {
 
                         GGML_ASSERT(batch.n_tokens > 0);
 
-                        // extract the logits only for the last token
-                        batch.logits[batch.n_tokens - 1] = true;
+                        // extract the output only for the last token
+                        batch.output[batch.n_tokens - 1] = true;
 
                         slot.n_decoded = 0;
                         slot.i_batch   = batch.n_tokens - 1;
@@ -2204,7 +2204,7 @@ struct server_context {
                 batch.pos      + i,
                 batch.n_seq_id + i,
                 batch.seq_id   + i,
-                batch.logits   + i,
+                batch.output + i,
                 0, 0, 0, // unused
             };
 

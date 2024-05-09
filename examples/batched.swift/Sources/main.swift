@@ -86,11 +86,11 @@ for (i, token) in tokens.enumerated() {
     if let seq_id = batch.seq_id[i] {
         seq_id[0] = 0
     }
-    batch.logits[i] = 0
+    batch.output[i] = 0
 }
 
-// llama_decode will output logits only for the last token of the prompt
-batch.logits[Int(batch.n_tokens) - 1] = 1
+// llama_decode will output output only for the last token of the prompt
+batch.output[Int(batch.n_tokens) - 1] = 1
 
 if llama_decode(context, batch) != 0 {
     print("llama_decode() failed")
@@ -126,12 +126,12 @@ while n_cur <= n_len {
         }
 
         var n_vocab = llama_n_vocab(model)
-        var logits = llama_get_logits_ith(context, i_batch[i])
+        var output = llama_get_logits_ith(context, i_batch[i])
 
         var candidates: [llama_token_data] = .init(repeating: llama_token_data(), count: Int(n_vocab))
 
         for token_id in 0 ..< n_vocab {
-            candidates.append(llama_token_data(id: token_id, logit: logits![Int(token_id)], p: 0.0))
+            candidates.append(llama_token_data(id: token_id, logit: output![Int(token_id)], p: 0.0))
         }
 
         var candidates_p: llama_token_data_array = .init(
@@ -178,7 +178,7 @@ while n_cur <= n_len {
         if let seq_id = batch.seq_id[Int(batch.n_tokens)] {
             seq_id[0] = Int32(i)
         }
-        batch.logits[Int(batch.n_tokens)] = 1
+        batch.output[Int(batch.n_tokens)] = 1
 
         i_batch[i] = batch.n_tokens
 

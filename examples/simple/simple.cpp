@@ -100,8 +100,8 @@ int main(int argc, char ** argv) {
         llama_batch_add(batch, tokens_list[i], i, { 0 }, false);
     }
 
-    // llama_decode will output logits only for the last token of the prompt
-    batch.logits[batch.n_tokens - 1] = true;
+    // llama_decode will output output only for the last token of the prompt
+    batch.output[batch.n_tokens - 1] = true;
 
     if (llama_decode(ctx, batch) != 0) {
         LOG_TEE("%s: llama_decode() failed\n", __func__);

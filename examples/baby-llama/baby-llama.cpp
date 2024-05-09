@@ -1539,7 +1539,7 @@ int main(int argc, char ** argv) {
         get_example_targets_batch(ctx0, 64*ex+0,  tokens_input, targets);
 
         struct ggml_tensor * logits = forward_batch(&model, &kv_self, ctx0, gf, tokens_input, n_tokens, n_past, n_batch);
-        // struct ggml_tensor * e = cross_entropy_loss(ctx0, targets, logits);
+        // struct ggml_tensor * e = cross_entropy_loss(ctx0, targets, output);
         struct ggml_tensor * e = square_error_loss(ctx0, targets, logits);
 
         ggml_build_forward_expand(gf, e);

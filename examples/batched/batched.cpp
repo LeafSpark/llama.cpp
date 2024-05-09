@@ -124,8 +124,8 @@ int main(int argc, char ** argv) {
     }
     GGML_ASSERT(batch.n_tokens == (int) tokens_list.size());
 
-    // llama_decode will output logits only for the last token of the prompt
-    batch.logits[batch.n_tokens - 1] = true;
+    // llama_decode will output output only for the last token of the prompt
+    batch.output[batch.n_tokens - 1] = true;
 
     if (llama_decode(ctx, batch) != 0) {
         LOG_TEE("%s: llama_decode() failed\n", __func__);
@@ -148,7 +148,7 @@ int main(int argc, char ** argv) {
     std::vector<std::string> streams(n_parallel);
 
     // remember the batch index of the last token for each parallel sequence
-    // we need this to determine which logits to sample from
+    // we need this to determine which output to sample from
     std::vector<int32_t> i_batch(n_parallel, batch.n_tokens - 1);
 
     int n_cur    = batch.n_tokens;

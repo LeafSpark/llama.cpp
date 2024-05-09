@@ -97,7 +97,7 @@ struct TransformerWeights {
     // freq_cis for RoPE relatively positional embeddings
     // std::vector<float> freq_cis_real; // (seq_len, dim/2)
     // std::vector<float> freq_cis_imag; // (seq_len, dim/2)
-    // (optional) classifier weights for the logits, on the last layer
+    // (optional) classifier weights for the output, on the last layer
     std::vector<float> wcls;
 };
 

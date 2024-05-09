@@ -1030,23 +1030,33 @@ static const std::map<llm_arch, std::map<llm_tensor, std::string>> LLM_TENSOR_NA
         },
     },
     {
-        LLM_ARCH_DEEPSEEK2MOE,
-        {
-            { LLM_TENSOR_TOKEN_EMBD,      "token_embd" },
-            { LLM_TENSOR_OUTPUT_NORM,     "output_norm" },
-            { LLM_TENSOR_OUTPUT,          "output" },
-            { LLM_TENSOR_ROPE_FREQS,      "rope_freqs" },
-            { LLM_TENSOR_ATTN_NORM,       "blk.%d.attn_norm" },
-            { LLM_TENSOR_ATTN_Q,          "blk.%d.attn_q" },
-            { LLM_TENSOR_ATTN_K,          "blk.%d.attn_k" },
-            { LLM_TENSOR_ATTN_V,          "blk.%d.attn_v" },
-            { LLM_TENSOR_ATTN_OUT,        "blk.%d.attn_output" },
-            { LLM_TENSOR_ATTN_ROT_EMBD,   "blk.%d.attn_rot_embd" },
-            { LLM_TENSOR_FFN_NORM,        "blk.%d.ffn_norm" },
-            { LLM_TENSOR_FFN_DOWN,        "blk.%d.ffn_down" },
-            { LLM_TENSOR_FFN_GATE,        "blk.%d.ffn_gate" },
-            { LLM_TENSOR_FFN_UP,          "blk.%d.ffn_up" },
-        },
+            LLM_ARCH_DEEPSEEK2MOE,
+            {
+                    { LLM_TENSOR_TOKEN_EMBD,      "token_embd" },
+                    { LLM_TENSOR_OUTPUT_NORM,     "output_norm" },
+                    { LLM_TENSOR_OUTPUT,          "output" },
+                    { LLM_TENSOR_ROPE_FREQS,      "rope_freqs" },
+                    { LLM_TENSOR_ATTN_NORM,       "blk.%d.attn_norm" },
+                    { LLM_TENSOR_ATTN_Q,          "blk.%d.attn_q" },
+                    { LLM_TENSOR_ATTN_K,          "blk.%d.attn_k" },
+                    { LLM_TENSOR_ATTN_V,          "blk.%d.attn_v" },
+                    { LLM_TENSOR_ATTN_OUT,        "blk.%d.attn_output" },
+                    { LLM_TENSOR_ATTN_ROT_EMBD,   "blk.%d.attn_rot_embd" },
+                    { LLM_TENSOR_FFN_NORM,        "blk.%d.ffn_norm" },
+                    { LLM_TENSOR_FFN_DOWN,        "blk.%d.ffn_down" },
+                    { LLM_TENSOR_FFN_GATE,        "blk.%d.ffn_gate" },
+                    { LLM_TENSOR_FFN_UP,          "blk.%d.ffn_up" },
+                    { LLM_TENSOR_TOKEN_EMBD_NORM, "model.embed_tokens.weight" },
+                    { LLM_TENSOR_FFN_GATE_INP,    "model.norm.weight" },
+                    { LLM_TENSOR_FFN_GATE_INP_SHEXP, "model.layers.%d.self_attn.q_a_proj.weight" },
+                    { LLM_TENSOR_FFN_DOWN_SHEXP,  "model.layers.%d.self_attn.kv_b_proj.weight" },
+                    { LLM_TENSOR_FFN_UP_SHEXP,    "model.layers.%d.mlp.up_proj.weight" },
+                    { LLM_TENSOR_FFN_GATE_SHEXP,  "model.layers.%d.mlp.gate.weight" },
+                    { LLM_TENSOR_FFN_ACT,         "model.layers.%d.mlp.act_proj.weight" },
+                    { LLM_TENSOR_FFN_DOWN_EXP,    "model.layers.%d.mlp.experts.%d.down_proj.weight" },
+                    { LLM_TENSOR_FFN_GATE_EXP,    "model.layers.%d.mlp.experts.%d.gate_proj.weight" },
+                    { LLM_TENSOR_FFN_UP_EXP,      "model.layers.%d.mlp.experts.%d.up_proj.weight" },
+            },
     },
     {
         LLM_ARCH_UNKNOWN,
@@ -2303,14 +2313,14 @@ struct llama_context {
     int32_t n_p_eval = 0; // number of tokens in eval calls for the prompt (with batch size > 1)
     int32_t n_eval   = 0; // number of eval calls
 
-    // host buffer for the model output (logits and embeddings)
+    // host buffer for the model output (output and embeddings)
     ggml_backend_buffer_t buf_output = nullptr;
 
     // decode output (2-dimensional array: [n_outputs][n_vocab])
-    size_t  logits_size = 0; // capacity (of floats) for logits
+    size_t  logits_size = 0; // capacity (of floats) for output
     float * logits      = nullptr;
 
-    std::vector<int32_t> output_ids; // map batch token positions to ids of the logits and embd buffers
+    std::vector<int32_t> output_ids; // map batch token positions to ids of the output and embd buffers
     size_t  output_size = 0; // capacity (of tokens positions) for the output buffers
     int32_t n_outputs   = 0; // number of actually-used outputs in the current ubatch or last logical batch
 
@@ -4391,6 +4401,9 @@ static void llm_load_vocab(
             } else if (
                     tokenizer_pre == "deepseek-llm") {
                 vocab.type_pre = LLAMA_VOCAB_PRE_TYPE_DEEPSEEK_LLM;
+            } else if (
+                    tokenizer_pre == "deepseek2-llm") {
+                vocab.type_pre = LLAMA_VOCAB_PRE_TYPE_DEEPSEEK2_LLM;
             } else if (
                     tokenizer_pre == "deepseek-coder") {
                 vocab.type_pre = LLAMA_VOCAB_PRE_TYPE_DEEPSEEK_CODER;
@@ -7637,7 +7650,7 @@ struct llm_build_context {
         cur = ggml_mul_mat(ctx0, model.output, cur);
 
         // Grok
-        // multiply logits by output_multiplier_scale of 0.5773502691896257
+        // multiply output by output_multiplier_scale of 0.5773502691896257
 
         cur = ggml_scale(ctx0, cur, 0.5773502691896257f);
 
@@ -11006,10 +11019,10 @@ static void llama_set_inputs(llama_context & lctx, const llama_batch & batch) {
             for (int i = 0; i < n_tokens; ++i) {
                 data[i] = i;
             }
-        } else if (batch.logits) {
+        } else if (batch.output) {
             int32_t n_outputs = 0;
             for (int i = 0; i < n_tokens; ++i) {
-                if (batch.logits[i]) {
+                if (batch.output[i]) {
                     data[n_outputs++] = i;
                 }
             }
@@ -11220,7 +11233,7 @@ static size_t llama_output_reserve(llama_context & lctx, size_t n_outputs) {
     const auto n_vocab = hparams.n_vocab;
     const auto n_embd  = hparams.n_embd;
 
-    // TODO: use a per-batch flag for logits presence instead
+    // TODO: use a per-batch flag for output presence instead
     const bool has_logits = cparams.causal_attn;
     const bool has_embd   = cparams.embeddings && (hparams.causal_attn || cparams.pooling_type == LLAMA_POOLING_TYPE_NONE);
 
@@ -11362,9 +11375,9 @@ static int llama_decode_internal(
     std::vector<std::vector<llama_seq_id>> seq_id;
 
     // count outputs
-    if (batch_all.logits) {
+    if (batch_all.output) {
         for (uint32_t i = 0; i < n_tokens_all; ++i) {
-            n_outputs += batch_all.logits[i] != 0;
+            n_outputs += batch_all.output[i] != 0;
         }
     } else if (lctx.logits_all || (cparams.embeddings && cparams.pooling_type != LLAMA_POOLING_TYPE_NONE)) {
         n_outputs = n_tokens_all;
@@ -11380,10 +11393,10 @@ static int llama_decode_internal(
     };
 
     // set output mappings
-    if (batch_all.logits) {
+    if (batch_all.output) {
         int32_t i_logits = 0;
         for (uint32_t i = 0; i < n_tokens_all; ++i) {
-            if (batch_all.logits[i]) {
+            if (batch_all.output[i]) {
                 lctx.output_ids[i] = i_logits++;
             }
         }
@@ -11402,7 +11415,7 @@ static int llama_decode_internal(
             /* .pos        = */ batch_all.pos       ? batch_all.pos      + cur_token        : nullptr,
             /* .n_seq_id   = */ batch_all.n_seq_id  ? batch_all.n_seq_id + cur_token        : nullptr,
             /* .seq_id     = */ batch_all.seq_id    ? batch_all.seq_id   + cur_token        : nullptr,
-            /* .logits     = */ batch_all.logits    ? batch_all.logits   + cur_token        : nullptr,
+            /* .output     = */ batch_all.output ? batch_all.output + cur_token : nullptr,
             /* .all_pos_0  = */ batch_all.all_pos_0 + (llama_pos) cur_token*batch_all.all_pos_1,
             /* .all_pos_1  = */ batch_all.all_pos_1,
             /* .all_seq_id = */ batch_all.all_seq_id,
@@ -11412,9 +11425,9 @@ static int llama_decode_internal(
         {
             int32_t n_outputs_new = 0;
 
-            if (u_batch.logits) {
+            if (u_batch.output) {
                 for (uint32_t i = 0; i < n_tokens; i++) {
-                    n_outputs_new += u_batch.logits[i] != 0;
+                    n_outputs_new += u_batch.output[i] != 0;
                 }
             } else if (n_outputs == n_tokens_all) {
                 n_outputs_new = n_tokens;
@@ -11497,7 +11510,7 @@ static int llama_decode_internal(
             res  = nullptr;
             embd = nullptr;
         } else if (!hparams.causal_attn) {
-            res = nullptr; // do not extract logits for embedding models such as BERT
+            res = nullptr; // do not extract output for embedding models such as BERT
 
             // token or sequence embeddings
             embd = gf->nodes[gf->n_nodes - 1];
@@ -11513,10 +11526,10 @@ static int llama_decode_internal(
             }
             GGML_ASSERT(i_embd >= 0 && "missing result_norm tensor");
 
-            // TODO: use a per-batch flag to know when to skip logits while keeping embeddings
+            // TODO: use a per-batch flag to know when to skip output while keeping embeddings
             if (!cparams.causal_attn) {
-                res = nullptr; // do not extract logits when not needed
-                // skip computing logits
+                res = nullptr; // do not extract output when not needed
+                // skip computing output
                 // TODO: is this safe?
                 gf->n_nodes = i_embd + 1;
             }
@@ -11564,7 +11577,7 @@ static int llama_decode_internal(
         //    ggml_graph_dump_dot(gf, NULL, "llama.dot");
         //}
 
-        // extract logits
+        // extract output
         if (res) {
             ggml_backend_t backend_res = ggml_backend_sched_get_tensor_backend(lctx.sched, res);
             GGML_ASSERT(backend_res != nullptr);
@@ -12244,6 +12257,15 @@ struct llm_tokenizer_bpe {
                             "\\s+$",
                             "[一-龥ࠀ-一가-퟿]+",
                             "\\p{N}+",
+                        });
+                        break;
+                    case LLAMA_VOCAB_PRE_TYPE_DEEPSEEK2_LLM:
+                        word_collection = unicode_regex_split(text, {
+                                "[\r\n]",
+                                "\\s?[A-Za-zµÀ-ÖØ-öø-ƺƼ-ƿǄ-ʓʕ-ʯͰ-ͳͶͷͻ-ͽͿΆΈ-ΊΌΎ-ΡΣ-ϵϷ-ҁҊ-ԯԱ-ՖႠ-ჅᎠ-Ᏽᏸ-ᏽᲐ-ᲺᲽ-Ჿᴀ-ᴫᵫ-ᵷᵹ-ᶚḀ-ἕἘ-Ἕἠ-ὅὈ-Ὅὐ-ὗὙὛὝὟ-ώᾀ-ᾴᾶ-ᾼιῂ-ῄῆ-ῌῐ-ΐῖ-Ίῠ-Ῥῲ-ῴῶ-ῼℂℇℊ-ℓℕℙ-ℝℤΩℨK-ℭℯ-ℴℹℼ-ℿⅅ-ⅉⅎↃↄⰀ-ⱻⱾ-ⳤⳫ-ⳮⳲⳳꙀ-ꙭꚀ-ꚛꜢ-ꝯꝱ-ꞇꞋ-ꞎꭰ-ꮿﬀ-ﬆﬓ-ﬗＡ-Ｚａ-ｚ𐐀-𐑏𐒰-𐓓𐓘-𐓻𐲀-𐲲𐳀-𐳲𑢠-𑣟𞤀-𞥃]+",
+                                "\\s?[!-/:-~！-／：-～‘-‟　-。]+",
+                                "\\s+$",
+                                "[一-龥ࠀ-一가-퟿]+"
                         });
                         break;
                     case LLAMA_VOCAB_PRE_TYPE_DEEPSEEK_CODER:
@@ -13210,7 +13232,7 @@ void llama_sample_softmax(struct llama_context * ctx, llama_token_data_array * c
 
     const int64_t t_start_sample_us = ggml_time_us();
 
-    // Sort the logits in descending order
+    // Sort the output in descending order
     if (!candidates->sorted) {
         std::sort(candidates->data, candidates->data + candidates->size, [](const llama_token_data & a, const llama_token_data & b) {
             return a.logit > b.logit;
@@ -13382,7 +13404,7 @@ void llama_sample_min_p(struct llama_context * ctx, llama_token_data_array * can
 
     // if the candidates are sorted or the unsorted implementation failed, use this implementation
     if (!min_p_applied) {
-        // Sort the logits in descending order
+        // Sort the output in descending order
         if (!candidates->sorted) {
             std::sort(candidates->data, candidates->data + candidates->size, [](const llama_token_data & a, const llama_token_data & b) {
                 return a.logit > b.logit;
@@ -13474,7 +13496,7 @@ void llama_sample_typical(struct llama_context * ctx, llama_token_data_array * c
         return;
     }
 
-    // Compute the softmax of logits and calculate entropy
+    // Compute the softmax of output and calculate entropy
     llama_sample_softmax(nullptr, candidates);
 
     const int64_t t_start_sample_us = ggml_time_us();
@@ -13573,7 +13595,7 @@ void llama_sample_entropy(struct llama_context * ctx, llama_token_data_array * c
         candidates_p->data[i].logit /= dyn_temp;
     }
 
-    // Re-compute softmax probabilities after scaling logits with dynamic temperature
+    // Re-compute softmax probabilities after scaling output with dynamic temperature
     double max_l_double = candidates_p->data[0].logit;
     double cum_sum_double = 0.0;
     for (size_t i = 0; i < candidates_p->size; ++i) {
@@ -13639,7 +13661,7 @@ void llama_sample_repetition_penalties(
 
         const int count = token_iter->second;
 
-        // The academic publication that described this technique actually just only divided, but that would cause tokens with negative logits to become more likely, which is obviously wrong.
+        // The academic publication that described this technique actually just only divided, but that would cause tokens with negative output to become more likely, which is obviously wrong.
         // This is common fix for this problem, which is to multiply by the penalty instead of dividing.
         if (candidates->data[i].logit <= 0) {
             candidates->data[i].logit *= penalty_repeat;
@@ -16409,7 +16431,7 @@ static void llama_state_get_data_internal(struct llama_context * ctx, llama_data
             }
         }
 
-        // copy logits
+        // copy output
         {
             const size_t logits_size = std::min(ctx->logits_size, n_outputs * ctx->model.hparams.n_vocab);
 
@@ -16557,7 +16579,7 @@ size_t llama_state_set_data(struct llama_context * ctx, const uint8_t * src) {
         }
     }
 
-    // set logits
+    // set output
     {
         size_t logits_size;
 
@@ -17256,7 +17278,7 @@ struct llama_batch llama_batch_get_one(
         /*pos            =*/ nullptr,
         /*n_seq_id       =*/ nullptr,
         /*seq_id         =*/ nullptr,
-        /*logits         =*/ nullptr,
+        /*output         =*/ nullptr,
         /*all_pos_0      =*/ pos_0,
         /*all_pos_1      =*/ 1,
         /*all_seq_id     =*/ seq_id,
@@ -17280,7 +17302,7 @@ struct llama_batch llama_batch_init(int32_t n_tokens_alloc, int32_t embd, int32_
     }
     batch.seq_id[n_tokens_alloc] = nullptr;
 
-    batch.logits   = (int8_t *)        malloc(sizeof(int8_t)         * n_tokens_alloc);
+    batch.output   = (int8_t *)        malloc(sizeof(int8_t) * n_tokens_alloc);
 
     return batch;
 }
@@ -17296,7 +17318,7 @@ void llama_batch_free(struct llama_batch batch) {
         }
         free(batch.seq_id);
     }
-    if (batch.logits)   free(batch.logits);
+    if (batch.output)   free(batch.output);
 }
 
 int32_t llama_decode(
@@ -17348,7 +17370,7 @@ float * llama_get_logits_ith(struct llama_context * ctx, int32_t i) {
 
     try {
         if (ctx->logits == nullptr) {
-            throw std::runtime_error("no logits");
+            throw std::runtime_error("no output");
         }
 
         if (i < 0) {
@@ -17363,7 +17385,7 @@ float * llama_get_logits_ith(struct llama_context * ctx, int32_t i) {
         }
 
         if (j < 0) {
-            throw std::runtime_error(format("batch.logits[%d] != true", i));
+            throw std::runtime_error(format("batch.output[%d] != true", i));
         }
         if (j >= ctx->n_outputs) {
             // This should not happen
@@ -17372,7 +17394,7 @@ float * llama_get_logits_ith(struct llama_context * ctx, int32_t i) {
 
         return ctx->logits + j*ctx->model.hparams.n_vocab;
     } catch (const std::exception & err) {
-        LLAMA_LOG_ERROR("%s: invalid logits id %d, reason: %s\n", __func__, i, err.what());
+        LLAMA_LOG_ERROR("%s: invalid output id %d, reason: %s\n", __func__, i, err.what());
 #ifndef NDEBUG
         GGML_ASSERT(false);
 #endif
@@ -17408,7 +17430,7 @@ float * llama_get_embeddings_ith(struct llama_context * ctx, int32_t i) {
         }
 
         if (j < 0) {
-            throw std::runtime_error(format("batch.logits[%d] != true", i));
+            throw std::runtime_error(format("batch.output[%d] != true", i));
         }
         if (j >= ctx->n_outputs) {
             // This should not happen

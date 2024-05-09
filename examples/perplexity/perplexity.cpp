@@ -72,7 +72,7 @@ static void write_logfile(
     fprintf(logfile, "######################\n");
     fprintf(logfile, "\n");
 
-    dump_vector_float_yaml(logfile, "logits", results.logits);
+    dump_vector_float_yaml(logfile, "output", results.logits);
     fprintf(logfile, "ppl_value: %f\n", results.ppl_value);
     dump_vector_float_yaml(logfile, "probs", results.probs);
 
@@ -407,7 +407,7 @@ static results_perplexity perplexity_v2(llama_context * ctx, const gpt_params & 
             const int batch_size  = std::min(end - batch_start, n_batch);
 
             //fprintf(stderr, "    Batch %d: starts at %d, size is %d, n_past is %d\n",j,batch_start,batch_size,j * n_batch);
-            // TODO: use llama_batch.logits instead of relying on logits_all == true
+            // TODO: use llama_batch.output instead of relying on logits_all == true
             if (llama_decode(ctx, llama_batch_get_one(tokens.data() + batch_start, batch_size, j * n_batch, 0))) {
                 //fprintf(stderr, "%s : failed to eval\n", __func__);
                 return {tokens, -1, logit_history, prob_history};
@@ -490,7 +490,7 @@ static results_perplexity perplexity(llama_context * ctx, const gpt_params & par
             fprintf(stderr, "%s: failed to open %s for writing\n", __func__, params.logits_file.c_str());
             return {};
         }
-        fprintf(stderr, "%s: saving all logits to %s\n", __func__, params.logits_file.c_str());
+        fprintf(stderr, "%s: saving all output to %s\n", __func__, params.logits_file.c_str());
         logits_stream.write("_logits_", 8);
         logits_stream.write(reinterpret_cast<const char *>(&n_ctx), sizeof(n_ctx));
     }
@@ -552,13 +552,13 @@ static results_perplexity perplexity(llama_context * ctx, const gpt_params & par
         log_probs.resize(n_ctx * nv);
     }
 
-    // We get the logits for all the tokens in the context window (params.n_ctx)
+    // We get the output for all the tokens in the context window (params.n_ctx)
     // from llama_eval above.  Now, based on https://huggingface.co/docs/transformers/perplexity,
     // calculate the perplexity over the last half of the window (so the model always has
     // some context to predict the token).
     //
     // We rely on the fact that attention in the forward pass only looks at previous
-    // tokens here, so the logits returned for each token are an accurate representation
+    // tokens here, so the output returned for each token are an accurate representation
     // of what the model would have predicted at that point.
     //
     // Example, we have a context window of 512, we will compute perplexity for each of the
@@ -601,9 +601,9 @@ static results_perplexity perplexity(llama_context * ctx, const gpt_params & par
                     batch.pos     [idx]    = j*n_batch + k;
                     batch.n_seq_id[idx]    = 1;
                     batch.seq_id  [idx][0] = seq;
-                    batch.logits  [idx]    = batch.pos[idx] >= first ? 1 : 0;
+                    batch.output  [idx]    = batch.pos[idx] >= first ? 1 : 0;
 
-                    n_outputs += batch.logits[idx] != 0;
+                    n_outputs += batch.output[idx] != 0;
                 }
                 batch.n_tokens += batch_size;
 
@@ -697,7 +697,7 @@ static bool decode_helper(llama_context * ctx, llama_batch & batch, std::vector<
             batch.pos      + i,
             batch.n_seq_id + i,
             batch.seq_id   + i,
-            batch.logits   + i,
+            batch.output + i,
             0, 0, 0, // unused
         };
 
@@ -709,7 +709,7 @@ static bool decode_helper(llama_context * ctx, llama_batch & batch, std::vector<
 
         int n_outputs = 0;
         for (int i = 0; i < n_tokens; ++i) {
-            n_outputs += batch_view.logits[i] != 0;
+            n_outputs += batch_view.output[i] != 0;
         }
 
         memcpy(batch_logits.data() + prev_outputs*n_vocab, llama_get_logits(ctx), n_outputs*n_vocab*sizeof(float));
@@ -818,7 +818,7 @@ static void hellaswag_score(llama_context * ctx, const gpt_params & params) {
         size_t ending_logprob_count[4];
         double ending_logprob[4];
 
-        size_t i_logits;        // starting index of logits in the llama_batch
+        size_t i_logits;        // starting index of output in the llama_batch
         size_t common_prefix;   // max number of initial tokens that are the same in all sentences
         size_t required_tokens; // needed number of tokens to evaluate all 4 endings
         std::vector<llama_token> seq_tokens[4];
@@ -897,14 +897,14 @@ static void hellaswag_score(llama_context * ctx, const gpt_params & params) {
         int n_cur = 0;
 
         size_t i1 = i0;
-        size_t i_logits = 0; // this tells us how many logits were needed before this point in the batch
+        size_t i_logits = 0; // this tells us how many output were needed before this point in the batch
 
         llama_batch_clear(batch);
 
         // batch as much tasks as possible into the available context
         // each task has 4 unique sequence ids - one for each ending
         // the common prefix is shared among the 4 sequences to save tokens
-        // we extract logits only from the last common token and from all ending tokens of each sequence
+        // we extract output only from the last common token and from all ending tokens of each sequence
         while (n_cur + (int) hs_data[i1].required_tokens <= n_ctx) {
             auto & hs_cur = hs_data[i1];
             int n_logits = 0;
@@ -917,7 +917,7 @@ static void hellaswag_score(llama_context * ctx, const gpt_params & params) {
             for (size_t i = 0; i < hs_cur.common_prefix; ++i) {
                 llama_batch_add(batch, hs_cur.seq_tokens[0][i], i, { s0 + 0, s0 + 1, s0 + 2, s0 + 3 }, false);
             }
-            batch.logits[batch.n_tokens - 1] = true; // we need logits for the last token of the common prefix
+            batch.output[batch.n_tokens - 1] = true; // we need output for the last token of the common prefix
             n_logits += 1;
 
             for (int s = 0; s < 4; ++s) {
@@ -973,7 +973,7 @@ static void hellaswag_score(llama_context * ctx, const gpt_params & params) {
         for (size_t i = i0; i < i1; ++i) {
             auto & hs_cur = hs_data[i];
 
-            // get the logits of the last token of the common prefix
+            // get the output of the last token of the common prefix
             std::memcpy(tok_logits.data(), batch_logits.data() + n_vocab*hs_cur.i_logits, n_vocab*sizeof(float));
 
             const auto first_probs = softmax(tok_logits);
@@ -1196,7 +1196,7 @@ static void winogrande_score(llama_context * ctx, const gpt_params & params) {
             for (size_t i = 0; i < data[i1].common_prefix; ++i) {
                 llama_batch_add(batch, data[i1].seq_tokens[0][i], i, { s0 + 0, s0 + 1 }, false);
             }
-            batch.logits[batch.n_tokens - 1] = true;
+            batch.output[batch.n_tokens - 1] = true;
             n_logits += 1;
 
             for (int s = 0; s < 2; ++s) {
@@ -1245,7 +1245,7 @@ static void winogrande_score(llama_context * ctx, const gpt_params & params) {
             }
             const auto& n_base2 = skip_choice ? task.n_base2 : task.common_prefix;
             const int last_2nd = task.seq_tokens[1].size() - n_base2 > 1 ? 1 : 0;
-            // FIXME: this uses the wrong first logits when not skipping the choice word
+            // FIXME: this uses the wrong first output when not skipping the choice word
             li = task.seq_tokens[0].size() - task.common_prefix + n_base2 - task.common_prefix;
             for (size_t j = n_base2-1; j < task.seq_tokens[1].size()-1-last_2nd; ++j) {
                 eval_pairs.emplace_back(task.i_logits + li++, task.seq_tokens[1][j+1]);
@@ -1337,7 +1337,7 @@ struct multiple_choice_task {
     }
 
     // For evaluation
-    size_t i_logits;        // starting index of logits in the llama_batch
+    size_t i_logits;        // starting index of output in the llama_batch
     size_t common_prefix;   // max number of initial tokens that are the same in all sentences
     size_t required_tokens; // needed number of tokens to evaluate all answers
     std::vector<std::vector<llama_token>> seq_tokens;
@@ -1538,14 +1538,14 @@ static void multiple_choice_score(llama_context * ctx, const gpt_params & params
         int n_cur = 0;
 
         size_t i1 = i0;
-        size_t i_logits = 0; // this tells us how many logits were needed before this point in the batch
+        size_t i_logits = 0; // this tells us how many output were needed before this point in the batch
 
         llama_batch_clear(batch);
 
         // batch as much tasks as possible into the available context
         // each task has 4 unique sequence ids - one for each ending
         // the common prefix is shared among the 4 sequences to save tokens
-        // we extract logits only from the last common token and from all ending tokens of each sequence
+        // we extract output only from the last common token and from all ending tokens of each sequence
         int s0 = 0;
         while (n_cur + (int) tasks[i1].required_tokens <= n_ctx) {
             auto& cur_task = tasks[i1];
@@ -1565,7 +1565,7 @@ static void multiple_choice_score(llama_context * ctx, const gpt_params & params
                 //llama_batch_add(batch, cur_task.seq_tokens[0][i], i, { s0 + 0, s0 + 1, s0 + 2, s0 + 3}, false);
                 llama_batch_add(batch, cur_task.seq_tokens[0][i], i, batch_indeces, false);
             }
-            batch.logits[batch.n_tokens - 1] = true; // we need logits for the last token of the common prefix
+            batch.output[batch.n_tokens - 1] = true; // we need output for the last token of the common prefix
             n_logits += 1;
 
             for (int s = 0; s < int(cur_task.seq_tokens.size()); ++s) {
@@ -1630,7 +1630,7 @@ static void multiple_choice_score(llama_context * ctx, const gpt_params & params
             //}
             //printf("\n    common_prefix: %zu\n", cur_task.common_prefix);
 
-            // get the logits of the last token of the common prefix
+            // get the output of the last token of the common prefix
             std::memcpy(tok_logits.data(), batch_logits.data() + n_vocab*cur_task.i_logits, n_vocab*sizeof(float));
 
             const auto first_probs = softmax(tok_logits);
@@ -1794,7 +1794,7 @@ static void kl_divergence(llama_context * ctx, const gpt_params & params) {
                 tokens[batch_start] = llama_token_bos(llama_get_model(ctx));
             }
 
-            // TODO: use llama_batch.logits instead of relying on logits_all == true
+            // TODO: use llama_batch.output instead of relying on logits_all == true
             if (llama_decode(ctx, llama_batch_get_one(tokens.data() + batch_start, batch_size, j * n_batch, 0))) {
                 fprintf(stderr, "%s : failed to eval\n", __func__);
                 return;

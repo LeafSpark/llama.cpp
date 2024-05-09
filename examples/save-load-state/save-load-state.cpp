@@ -43,7 +43,7 @@ int main(int argc, char ** argv) {
     llama_decode(ctx, llama_batch_get_one(tokens.data(), tokens.size(), n_past, 0));
     n_past += tokens.size();
 
-    // save state (rng, logits, embedding and kv_cache) to file
+    // save state (rng, output, embedding and kv_cache) to file
     {
         std::vector<uint8_t> state_mem(llama_state_get_size(ctx));
         const size_t written = llama_state_get_data(ctx, state_mem.data());
@@ -96,7 +96,7 @@ int main(int argc, char ** argv) {
 
     printf("\nsecond run: %s", params.prompt.c_str());
 
-    // load state (rng, logits, embedding and kv_cache) from file
+    // load state (rng, output, embedding and kv_cache) from file
     {
         std::vector<uint8_t> state_mem(llama_state_get_size(ctx2));
 
@@ -156,7 +156,7 @@ int main(int argc, char ** argv) {
 
     printf("\nsingle seq run: %s", params.prompt.c_str());
 
-    // load state (rng, logits, embedding and kv_cache) from file
+    // load state (rng, output, embedding and kv_cache) from file
     {
         std::vector<uint8_t> state_mem(llama_state_get_size(ctx3));
 

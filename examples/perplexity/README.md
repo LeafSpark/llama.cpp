@@ -9,21 +9,21 @@ Within llama.cpp the perplexity of base models is used primarily to judge the qu
 The convention among contributors is to use the Wikitext-2 test set for testing unless noted otherwise (can be obtained with `scripts/get-wikitext-2.sh`).
 
 By default only the mean perplexity value and the corresponding uncertainty is calculated.
-The uncertainty is determined empirically by assuming a Gaussian distribution of the "correct" logits per and then applying error propagation.
+The uncertainty is determined empirically by assuming a Gaussian distribution of the "correct" output per and then applying error propagation.
 
-More statistics can be obtained by recording the logits from the FP16 version of a model.
+More statistics can be obtained by recording the output from the FP16 version of a model.
 To do this, supply `perplexity` with `--kl-divergence-base path/to/logit/binary/file.kld`.
-The program will then record all logits and save them to the provided path in binary format.
+The program will then record all output and save them to the provided path in binary format.
 **The logit file will be very large, 11 GiB for LLaMA 2 or 37 GiB for LLaMA 3 when using the Wikitext-2 test set.**
-Once you have the file, supply `perplexity` with the quantized model, the logits file via `--kl-divergence-base`,
+Once you have the file, supply `perplexity` with the quantized model, the output file via `--kl-divergence-base`,
 and finally the `--kl-divergence` argument to indicate that the program should calculate the so-called Kullback-Leibler divergence.
 This is a measure of how similar the FP16 and the quantized logit distributions are with a value of 0 indicating that the distribution are the same.
 The uncertainty on the mean KL divergence is calculated by assuming the KL divergence per token follows a Gaussian distribution.
 
 In addition to the KL divergence the following statistics are calculated with `--kl-divergence`:
 
-* Ratio of mean FP16 PPL and quantized PPL. Uncertainty is estimated on logits, then propagated. The logarithm of this metric is also calculated and printed, it is 0 if the logit distributions are the same.
-* Difference of mean FP16 PPL and quantized PPL. Uncertainty is estimated on logits, then propagated.
+* Ratio of mean FP16 PPL and quantized PPL. Uncertainty is estimated on output, then propagated. The logarithm of this metric is also calculated and printed, it is 0 if the logit distributions are the same.
+* Difference of mean FP16 PPL and quantized PPL. Uncertainty is estimated on output, then propagated.
 * Mean change in "correct" token probability. Positive values mean the model gets better at prediction, negative values mean it gets worse.
 * Pearson correlation coefficient of the "correct" token probabilites between models.
 * Percentiles of change in "correct" token probability. Positive values mean the model gets better at prediction, negative values mean it gets worse. Can be used to judge noise vs. quality loss from quantization. If the percentiles are symmetric then the quantization is essentially just adding noise. If the negative values are significantly larger than the positive values then this indicates that the model is actually becoming worse from the quantization.

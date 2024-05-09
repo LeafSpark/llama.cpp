@@ -1116,7 +1116,7 @@ bool gpt_params_find_arg(int argc, char ** argv, const std::string & arg, gpt_pa
         params.lookup_cache_dynamic = argv[i];
         return true;
     }
-    if (arg == "--save-all-logits" || arg == "--kl-divergence-base") {
+    if (arg == "--save-all-output" || arg == "--kl-divergence-base") {
         if (++i >= argc) {
             invalid_param = true;
             return true;
@@ -1124,7 +1124,7 @@ bool gpt_params_find_arg(int argc, char ** argv, const std::string & arg, gpt_pa
         params.logits_file = argv[i];
         return true;
     }
-    if (arg == "--perplexity" || arg == "--all-logits") {
+    if (arg == "--perplexity" || arg == "--all-output") {
         params.logits_all = true;
         return true;
     }
@@ -1509,14 +1509,14 @@ void gpt_print_usage(int /*argc*/, char ** argv, const gpt_params & params) {
     printf("  --ignore-eos          ignore end of stream token and continue generating (implies --logit-bias 2-inf)\n");
     printf("  --penalize-nl         penalize newline tokens\n");
     printf("  --temp N              temperature (default: %.1f)\n", (double)sparams.temp);
-    printf("  --all-logits          return logits for all tokens in the batch (default: disabled)\n");
+    printf("  --all-output          return output for all tokens in the batch (default: disabled)\n");
     printf("  --hellaswag           compute HellaSwag score over random tasks from datafile supplied with -f\n");
     printf("  --hellaswag-tasks N   number of tasks to use when computing the HellaSwag score (default: %zu)\n", params.hellaswag_tasks);
     printf("  --winogrande          compute Winogrande score over random tasks from datafile supplied with -f\n");
     printf("  --winogrande-tasks N  number of tasks to use when computing the Winogrande score (default: %zu)\n", params.winogrande_tasks);
     printf("  --multiple-choice     compute multiple choice score over random tasks from datafile supplied with -f\n");
     printf("  --multiple-choice-tasks N number of tasks to use when computing the multiple choice score (default: %zu)\n", params.winogrande_tasks);
-    printf("  --kl-divergence       computes KL-divergence to logits provided via --kl-divergence-base\n");
+    printf("  --kl-divergence       computes KL-divergence to output provided via --kl-divergence-base\n");
     printf("  --keep N              number of tokens to keep from the initial prompt (default: %d, -1 = all)\n", params.n_keep);
     printf("  --draft N             number of tokens to draft for speculative decoding (default: %d)\n", params.n_draft);
     printf("  --chunks N            max number of chunks to process (default: %d, -1 = all)\n", params.n_chunks);
@@ -1921,7 +1921,7 @@ void llama_batch_add(
     for (size_t i = 0; i < seq_ids.size(); ++i) {
         batch.seq_id[batch.n_tokens][i] = seq_ids[i];
     }
-    batch.logits  [batch.n_tokens] = logits;
+    batch.output  [batch.n_tokens] = logits;
 
     batch.n_tokens++;
 }

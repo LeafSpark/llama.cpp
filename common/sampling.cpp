@@ -193,7 +193,7 @@ static llama_token llama_sampling_sample_impl(
         GGML_ASSERT(!original_logits.empty());
     }
     llama_token id = 0;
-    // Get a pointer to the logits
+    // Get a pointer to the output
     float * logits = llama_get_logits_ith(ctx_main, idx);
 
     if (temp < 0.0) {
@@ -249,7 +249,7 @@ static llama_token llama_sampling_sample_impl(
         if (!is_valid) {
             LOG("Resampling because token %d: '%s' does not meet grammar rules\n", id, llama_token_to_piece(ctx_main, id).c_str());
 
-            // Restore logits from the copy
+            // Restore output from the copy
             std::copy(original_logits.begin(), original_logits.end(), logits);
 
             return llama_sampling_sample_impl(ctx_sampling, ctx_main, ctx_cfg, idx, true);  // Pass true for is_resampling
@@ -282,11 +282,11 @@ static llama_token_data_array llama_sampling_prepare_impl(
     auto & prev = ctx_sampling->prev;
     auto & cur  = ctx_sampling->cur;
 
-    // Get a pointer to the logits
+    // Get a pointer to the output
     float * logits = llama_get_logits_ith(ctx_main, idx);
 
     if (apply_grammar && original_logits != NULL) {
-        // Only make a copy of the original logits if we are not applying grammar checks, not sure if I actually have to do this.
+        // Only make a copy of the original output if we are not applying grammar checks, not sure if I actually have to do this.
         *original_logits = {logits, logits + llama_n_vocab(llama_get_model(ctx_main))};
     }
 
